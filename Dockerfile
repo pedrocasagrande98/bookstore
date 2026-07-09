@@ -1,33 +1,56 @@
-FROM python:3.13-slim
+# `python-base` sets up all our shared environment variables
+FROM python:3.13-slim as python-base
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+    # python
+ENV PYTHONUNBUFFERED=1 \
+    # prevents python creating .pyc files
+    PYTHONDONTWRITEBYTECODE=1 \
+    \
+    # pip
+    PIP_NO_CACHE_DIR=off \
+    PIP_DISABLE_PIP_VERSION_CHECK=on \
+    PIP_DEFAULT_TIMEOUT=100 \
+    \
+    # poetry
+    # https://python-poetry.org/docs/configuration/#using-environment-variables
+    POETRY_VERSION=2.4.1 \
+    # make poetry install to this location
+    POETRY_HOME="/opt/poetry" \
+    # make poetry create the virtual environment in the project's root
+    # it gets named `.venv`
+    POETRY_VIRTUALENVS_IN_PROJECT=true \
+    # do not ask any interactive question
+    POETRY_NO_INTERACTION=1 \
+    \
+    # paths
+    # this is where our requirements + virtual environment will live
+    PYSETUP_PATH="/opt/pysetup" \
+    VENV_PATH="/opt/pysetup/.venv"
 
-WORKDIR /app
+# prepend poetry and venv to path
+ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y \
+        curl \
+        build-essential \
+        libpq-dev \
+        gcc
 
-# Install poetry
-RUN pip install --upgrade pip && pip install poetry
+# install poetry - modern method
+RUN pip install poetry==$POETRY_VERSION
 
-# Disable poetry virtualenvs creation so dependencies are installed globally
-RUN poetry config virtualenvs.create false
+# copy project requirement files here to ensure they will be cached.
+WORKDIR $PYSETUP_PATH
+COPY poetry.lock pyproject.toml ./
 
-# Copy the dependency files first
-COPY pyproject.toml poetry.lock ./
+# install runtime deps
+RUN poetry install --no-root
 
-# Install the project dependencies
-RUN poetry install --no-root --no-interaction --no-ansi
+WORKDIR /usr/src/app
 
-# Copy the project files
-COPY . .
+COPY . /usr/src/app/
 
-# Expose port
 EXPOSE 8000
 
-# Start server
-CMD ["sh", "-c", "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"]
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
