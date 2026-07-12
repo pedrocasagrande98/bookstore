@@ -7,8 +7,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.13"]
-        poetry-version: ["2.4.1"]
+        python-version: [3.8, 3.9]
+        poetry-version: [1.1.4]
 
     runs-on: ubuntu-latest
 
@@ -24,7 +24,7 @@ jobs:
         run: |
           python -m ensurepip
           python -m pip install --upgrade pip
-          python -m pip install poetry==${{ matrix.poetry-version }}
+          python -m pip install "poetry-core==1.0.8" poetry==${{ matrix.poetry-version }}
       - name: View poetry --help
         run: poetry --help
 
